@@ -8,17 +8,16 @@ import (
 	"music-library/database"
 	"music-library/models"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-// AddSongRequest struct for adding a new song
 type AddSongRequest struct {
 	Group string `json:"group" binding:"required"`
 	Song  string `json:"song" binding:"required"`
 }
 
-// RegisterRoutes registers the API routes
 func RegisterRoutes(router *gin.Engine) {
 	router.GET("/songs", GetSongs)
 	router.GET("/songs/:id", GetSongByID)
@@ -27,18 +26,11 @@ func RegisterRoutes(router *gin.Engine) {
 	router.DELETE("/songs/:id", DeleteSong)
 }
 
-// GetSongs retrieves a list of songs with optional filters
-// @Summary Get list of songs
-// @Tags songs
-// @Accept json
-// @Produce json
-// @Param group query string false "Group"
-// @Param song query string false "Song"
-// @Success 200 {array} models.Song
-// @Router /songs [get]
 func GetSongs(c *gin.Context) {
 	group := c.Query("group")
 	title := c.Query("song")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
 	var songs []models.Song
 	db := database.GetDB()
@@ -50,7 +42,7 @@ func GetSongs(c *gin.Context) {
 		db = db.Where("title = ?", title)
 	}
 
-	if err := db.Find(&songs).Error; err != nil {
+	if err := db.Offset((page - 1) * limit).Limit(limit).Find(&songs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch songs"})
 		return
 	}
@@ -58,15 +50,6 @@ func GetSongs(c *gin.Context) {
 	c.JSON(http.StatusOK, songs)
 }
 
-// GetSongByID retrieves a single song by its ID
-// @Summary Get song by ID
-// @Tags songs
-// @Accept json
-// @Produce json
-// @Param id path int true "Song ID"
-// @Success 200 {object} models.Song
-// @Failure 404 {object} map[string]string
-// @Router /songs/{id} [get]
 func GetSongByID(c *gin.Context) {
 	id := c.Param("id")
 	var song models.Song
@@ -79,15 +62,6 @@ func GetSongByID(c *gin.Context) {
 	c.JSON(http.StatusOK, song)
 }
 
-// AddSong adds a new song to the database
-// @Summary Add a new song
-// @Tags songs
-// @Accept json
-// @Produce json
-// @Param song body AddSongRequest true "Add Song"
-// @Success 200 {object} models.Song
-// @Failure 400 {object} map[string]string
-// @Router /songs [post]
 func AddSong(c *gin.Context) {
 	var request AddSongRequest
 
@@ -96,7 +70,6 @@ func AddSong(c *gin.Context) {
 		return
 	}
 
-	// Запрос в внешний API
 	url := fmt.Sprintf("http://external-api.com/info?group=%s&song=%s", request.Group, request.Song)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -118,7 +91,6 @@ func AddSong(c *gin.Context) {
 		return
 	}
 
-	// Сохранение в базе данных
 	newSong := models.Song{
 		Group:       request.Group,
 		Title:       request.Song,
@@ -131,16 +103,6 @@ func AddSong(c *gin.Context) {
 	c.JSON(http.StatusOK, newSong)
 }
 
-// UpdateSong updates a song's information
-// @Summary Update a song
-// @Tags songs
-// @Accept json
-// @Produce json
-// @Param id path int true "Song ID"
-// @Param song body models.Song true "Update Song"
-// @Success 200 {object} models.Song
-// @Failure 400 {object} map[string]string
-// @Router /songs/{id} [put]
 func UpdateSong(c *gin.Context) {
 	id := c.Param("id")
 	var song models.Song
@@ -159,15 +121,6 @@ func UpdateSong(c *gin.Context) {
 	c.JSON(http.StatusOK, song)
 }
 
-// DeleteSong deletes a song from the database
-// @Summary Delete a song
-// @Tags songs
-// @Accept json
-// @Produce json
-// @Param id path int true "Song ID"
-// @Success 200 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /songs/{id} [delete]
 func DeleteSong(c *gin.Context) {
 	id := c.Param("id")
 	var song models.Song
